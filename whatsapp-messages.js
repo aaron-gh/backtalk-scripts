@@ -1,10 +1,10 @@
 export const manifest = {
   id: "whatsapp-messages",
   name: "WhatsApp messages",
-  version: "1.0",
+  version: "2.0",
   author: "Aaron Hewitt",
-  minApiVersion: 1,
-  testedApiVersion: 3,
+  minApiVersion: 4,
+  testedApiVersion: 4,
   description:
     "Reads each message in a WhatsApp chat as one item: sender, content, the message it replies to, and time. " +
     "Play, playback speed and the other buttons in a message are in its Actions menu.",
@@ -23,6 +23,7 @@ export const manifest = {
     {
       match: { className: "SeekBar", inside: { parentId: "list", className: "ViewGroup" } },
       hide: true,
+      silence: true,
     },
   ],
 };
