@@ -25,6 +25,8 @@ export const manifest = {
       hide: true,
       silence: true,
     },
+    // A voice message's time, which counts up each second while it plays.
+    { match: { id: "description", inside: { parentId: "list", className: "ViewGroup" } }, silence: true },
   ],
 };
 
