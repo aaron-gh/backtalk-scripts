@@ -31,6 +31,9 @@ export const manifest = {
 const MAX_BUTTONS = 24;
 const MAX_OPTIONS = 20;
 const LABEL_DEPTH = 3;
+const BUBBLE_DEPTH = 10;
+const MAX_BUBBLE_ITEMS = 60;
+const MAX_BUBBLE_TEXTS = 6;
 
 const shortId = (item) => (item.id || "").split("/").pop();
 const isRow = (item) => shortId(item).startsWith("conversation_row_") && /\/list$/.test((item.parent || {}).id || "");
@@ -152,11 +155,29 @@ const replyOf = (row) => {
   return [`${backtalk._("in reply to")} ${author}`.trim(), quoted].filter(Boolean).join(": ");
 };
 
-// A link's preview repeats the link; only a title that isn't the address is worth saying.
-const previewOf = (row) => {
+// A link's preview repeats the link; only a title that isn't the address is worth saying, unless
+// the message is only the link, which WhatsApp then shows as the preview alone.
+const previewOf = (row, alone) => {
   const title = textOf(row, "title");
-  if (!title || /^(https?:\/\/|www\.)/.test(title)) return "";
-  return `${backtalk._(row.find("play_button") ? "video link" : "link")}: ${title}`;
+  const named = title && !/^(https?:\/\/|www\.)/.test(title) ? title : alone ? textOf(row, "url") || title : "";
+  return named ? `${backtalk._(row.find("play_button") ? "video link" : "link")}: ${named}` : "";
+};
+
+// The time and status are said on their own, so a message of a kind not handled above is read from
+// the rest of the text in its bubble.
+const SKIP_IDS = ["date", "status", "name_in_group_tv", "conversation_row_date_divider"];
+const bubbleTextOf = (row) => {
+  const texts = [];
+  let visited = 0;
+  const visit = (item, depth) => {
+    if (SKIP_IDS.includes(shortId(item)) || texts.length >= MAX_BUBBLE_TEXTS || ++visited > MAX_BUBBLE_ITEMS) return;
+    const own = clean(item.contentDescription || item.text);
+    if (own && !texts.includes(own)) texts.push(own);
+    if (depth > 0) item.children.forEach((child) => visit(child, depth - 1));
+  };
+  const main = mainOf(row);
+  if (main) visit(main, BUBBLE_DEPTH);
+  return texts.join(", ");
 };
 
 const reactionsOf = (row) => {
@@ -171,16 +192,18 @@ const describe = (row) => {
   const content = voice ? voice.body : poll ? poll.body : [documentOf(row) || photoOf(row), text];
   const notices = row.findAll({ id: "info" }, 5).map((info) => clean(info.text));
   const body = [].concat(content).filter(Boolean).join(", ");
-  if (!body) return notices.length ? notices.join(", ") : undefined;
+  const preview = previewOf(row, !body);
+  const other = body || preview ? "" : bubbleTextOf(row);
+  if (!body && !preview && !other) return notices.length ? notices.join(", ") : undefined;
   const status = row.find("status");
   const time = voice ? voice.time : textOf(row, "date");
   const state = voice && voice.state ? voice.state : status && status.contentDescription;
   const parts = [
     senderOf(row),
-    body,
+    body || preview || other,
     voice && elapsedOf(row),
     row.find("edit_label") && backtalk._("edited"),
-    previewOf(row),
+    body && preview,
     replyOf(row),
     reactionsOf(row),
     [time, state, textOf(row, "conversation_row_date_divider")].filter(Boolean).join(", "),
